@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101b23"><meta name="description" content="召喚程式小兵，三合一升階，在 20 波 Bug 攻勢中守住你的程式世界。"><title>程式守衛隊 · CODE GUARDIANS</title><link rel="icon" href="./assets/favicon.svg"><link rel="stylesheet" href="./css/style.css"></head>
+<body>
+<header class="topbar"><a class="brand" href="./"><span class="brand-icon">&lt;/&gt;</span><span>程式守衛隊<small>CODE GUARDIANS</small></span></a><div class="toplinks"><button id="roster-open" class="text-button">角色圖鑑 <span>↗</span></button><a href="./AGENTS.md" target="_blank">開發規則 ↗</a><span class="version"><i></i> LUCKY BASE · v0.3</span></div></header>
+<main>
+<section class="intro"><div><p class="eyebrow"><span></span> SUMMON. MERGE. DEFEND.</p><h1>運氣召喚，<span>策略守衛。</span></h1><p class="subheading">組建你的程式小隊，在 Bug 入侵前守住最後一道防線。</p></div><div class="mission"><span class="mission-icon">⌘</span><div><small>本次任務</small><strong>守住 20 波 Bug 攻勢</strong><span>持續作戰 · 每 10 波迎戰頭目。</span></div></div></section>
+<section class="game-layout">
+<div class="arena-panel">
+<div class="arena-top"><div class="arena-title"><i class="live-dot"></i> <strong>像素程式基地</strong><span>SECTOR 01</span></div><span id="mode-badge" class="badge">等待開始</span></div>
+<div class="stats"><div><span>目前波次</span><strong><b id="wave-stat">00</b><small> / 20</small></strong></div><div><span>下一波 <em id="timer-label">倒數</em></span><strong id="time-stat">30<span>s</span></strong></div><div><span>入侵 Bug</span><strong><b id="enemy-stat">0</b><small> / 80</small></strong><div class="tiny-meter"><i id="enemy-meter"></i></div></div><div><span>守衛人數</span><strong><b id="guard-stat">0</b><small> / 30</small></strong></div></div>
+<div id="boss-banner" class="boss-banner" hidden><div><span>⚠ 頭目入侵</span><strong id="boss-name"></strong><b id="boss-clock"></b></div><div class="boss-meter"><i id="boss-hp"></i></div></div>
+<div id="active-luck" class="active-luck" aria-label="目前抽抽樂效果" hidden></div>
+<div class="canvas-wrap"><canvas id="board" width="720" height="720" aria-label="環形塔防戰場，中央四乘四格；召喚後點格子放置，拖曳整組角色移動或交換。"></canvas>
+<div id="game-cover" class="game-cover"><div class="cover-card"><div class="cover-pixel">&lt;/&gt;</div><p class="eyebrow">SYSTEM READY</p><h2 id="cover-title">你的守衛隊，等你指揮。</h2><p id="cover-description">召喚小兵、合成升階。<br>別讓場上的 Bug 達到 80 隻。</p><button id="cover-start" class="primary">▶ 開始守衛</button></div></div></div>
+<div class="arena-bottom"><span><i></i> 角色自動攻擊 · 拖曳整組移動</span><span>三隻同款 → 合成升階</span></div>
+</div>
+<aside class="control-panel">
+<section class="panel wallet"><span class="eyebrow">YOUR RESOURCES</span><div><span>可用金幣</span><strong><span class="coin">◆</span> <b id="gold-stat">200</b></strong></div><small>擊敗小怪 +3 · 頭目 +100</small></section>
+<section class="panel summon-panel"><div class="section-heading"><h2>召喚守衛</h2><span>01</span></div><p>每次召喚，都是一次新的可能。</p><div class="summon-preview"><div class="question-unit" id="question-unit">?</div><canvas id="pending-sprite" width="150" height="126" hidden></canvas><strong id="pending-name">隨機基礎小兵</strong><span id="pending-desc">Bit・符號兵・括號兵，各 ⅓ 機率</span></div><button id="summon" class="primary full">＋ 召喚小兵 <span>◆ <b id="summon-cost">20</b></span></button><small id="summon-help" class="helper">先開始遊戲，再召喚你的第一位守衛。</small></section>
+<section class="panel selected-panel"><div class="section-heading"><h2>選取的守衛</h2><span>02</span></div><div id="selection-empty" class="empty-selection"><span>⌖</span><p>點選戰場上的守衛<br>查看能力與合成條件</p></div><div id="selection-info" hidden><div class="unit-heading"><canvas id="selected-sprite" width="86" height="86"></canvas><div><span id="selected-tier" class="tier"></span><h3 id="selected-name"></h3><small id="selected-count"></small></div></div><p id="selected-description"></p><div class="unit-numbers"><span>傷害 <b id="selected-damage"></b></span><span>間隔 <b id="selected-speed"></b></span><span>射程 <b id="selected-range"></b></span></div><button id="merge" class="secondary full">◇ 三合一升階</button><small id="merge-help" class="helper"></small></div></section>
+<section class="panel luck-panel"><div class="section-heading"><h2>運氣抽抽樂</h2><span>RNG</span></div><p class="luck-intro">冒險執行一次未知指令。<br>五種增益，五種負面。</p><div id="luck-result" class="luck-result" role="status" aria-live="polite"><span id="luck-result-kind">等待指令</span><strong id="luck-result-name">這次，運氣站在哪邊？</strong><p id="luck-result-desc">第一次 100 金幣，每抽一次再加 50。</p></div><button id="draw-luck" class="primary full">⚄ 抽一次 <span>◆ <b id="luck-cost">100</b></span></button><small id="luck-help" class="helper">開始遊戲後可以抽取。</small><details class="luck-rules"><summary>查看十種效果與目前機率</summary><p>基本機率：增益 50%／負面 50%。同種限時效果重抽只重置時間，不疊加強度。援軍無法放置時排除並重新分配機率。</p><div id="luck-probabilities"></div></details></section>
+<div class="game-controls"><button id="pause" class="secondary">Ⅱ 暫停</button><button id="restart" class="secondary">↻ 重新開始</button></div>
+<div class="notice" role="status" aria-live="polite"><span>›</span><p id="notice">準備好了嗎？開始守衛你的程式世界。</p></div>
+</aside>
+</section>
+<section class="guide"><div class="guide-heading"><span class="eyebrow">QUICK GUIDE</span><h2>三步，守住你的程式世界。</h2></div><div class="guide-cards"><article><b>01</b><div><h3>召喚與部署</h3><p>首次 20 金幣召喚小兵，每次加 2，再點格子放置。拖曳整組守衛調整位置。</p></div></article><article><b>02</b><div><h3>三合一，進化</h3><p>同格湊滿三隻相同角色，選取後合成，隨機獲得下一階守衛。</p></div></article><article><b>03</b><div><h3>迎戰 Bug 頭目</h3><p>每 10 波出現頭目，60 秒內擊敗。完成第 20 波並清場即可獲勝。</p></div></article></div></section>
+<footer><span><b>&lt;/&gt;</b> 程式守衛隊</span><p>以程式概念為靈感的原創角色 · 單人像素塔防</p><a href="./README.md" target="_blank">專案說明 ↗</a></footer>
+</main>
+<dialog id="roster-dialog"><div class="dialog-heading"><div><p class="eyebrow">UNIT DATABASE</p><h2>守衛與 Bug 圖鑑</h2></div><button id="roster-close" class="icon-button" aria-label="關閉圖鑑">×</button></div><p class="dialog-note">三階守衛，八種敵人。程式概念化為你的作戰小隊。</p><div id="roster-content"></div></dialog>
+<script type="module" src="./js/main.js"></script>
+</body></html>
