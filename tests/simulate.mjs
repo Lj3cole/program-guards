@@ -2,10 +2,12 @@ import {Game} from '../dist/js/game.js';
 import {GUARDS} from '../dist/js/data/guards.js';
 import {cellCenter,positionAt} from '../dist/js/data/config.js';
 const order=[0,3,12,15,1,2,4,7,8,11,13,14,5,6,9,10];
-for(let seed=1;seed<=3;seed++){
+for(let seed=1;seed<=Number(process.env.SIM_SEEDS||3);seed++){
  let n=seed;const g=new Game(()=>((n=(n*1664525+1013904223)>>>0)/4294967296));g.start();let steps=0;
- while(g.mode==='running'&&steps<60000){
+ while(['running','stage-clear'].includes(g.mode)&&steps<180000){
+  if(g.mode==='stage-clear'){g.continueStage();}
   if(steps%15===0){
+   while(g.upgradeCombat()){}
    for(let i=0;i<16;i++){const c=g.cells[i];if(c&&c.units.length===3&&GUARDS[c.id].tier<3){g.selected=i;g.merge();}}
    for(let i=0;i<16;i++)for(let j=i+1;j<16;j++){const a=g.cells[i],b=g.cells[j];if(a&&b&&a.id===b.id&&a.units.length+b.units.length<=3)g.move(j,i);}
    if(!g.summonProblem())g.summon();
@@ -23,7 +25,7 @@ for(let seed=1;seed<=3;seed++){
   }
   g.update(1/30);steps++;
  }
- console.log(JSON.stringify({seed,mode:g.mode,wave:g.wave,seconds:Math.round(g.time),kills:g.kills,merges:g.merges,reason:g.reason}));
+ console.log(JSON.stringify({seed,mode:g.mode,stage:g.stage,wave:g.wave,seconds:Math.round(g.time),kills:g.kills,merges:g.merges,bountyGold:g.bountyGold,combatLevel:g.combatLevel,gems:g.gems,stageResults:g.stageResults,bossHp:g.enemies.find(e=>e.boss)?.hp,reason:g.reason}));
  // Loss is a balance observation, not a program error.
  if(!['won','lost'].includes(g.mode))process.exitCode=1;
 }

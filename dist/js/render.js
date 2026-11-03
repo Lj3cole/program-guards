@@ -2,17 +2,19 @@ import {CONFIG,positionAt,cellCenter,cellAt} from './data/config.js';
 import {GUARDS} from './data/guards.js';
 import {buildScene,drawSceneLights} from './scene.js';
 export const atlas=new Image();atlas.src=new URL('../assets/units.png',import.meta.url).href;
+export const newAtlas=new Image();newAtlas.src=new URL('../assets/new-units.png',import.meta.url).href;
 export function sprite(ctx,index,x,y,w,h=w){
- if(!atlas.complete||!atlas.naturalWidth){ctx.fillStyle='#c0ed7c';ctx.fillRect(x+w*.25,y+h*.25,w*.5,h*.5);return;}
- const cw=atlas.naturalWidth/5,ch=atlas.naturalHeight/4;
- ctx.imageSmoothingEnabled=false;ctx.drawImage(atlas,(index%5)*cw,Math.floor(index/5)*ch,cw,ch,x,y,w,h);
+ const source=index>=19?newAtlas:atlas;const tile=index>=19?index-19:index;
+ if(!source.complete||!source.naturalWidth){ctx.fillStyle='#c0ed7c';ctx.fillRect(x+w*.25,y+h*.25,w*.5,h*.5);return;}
+ const cw=source.naturalWidth/5,ch=source.naturalHeight/4;
+ ctx.imageSmoothingEnabled=false;ctx.drawImage(source,(tile%5)*cw,Math.floor(tile/5)*ch,cw,ch,x,y,w,h);
 }
-export function spritePreview(canvas,index){const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);sprite(c,index,0,0,canvas.width,canvas.height);}
+export function spritePreview(canvas,index){const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);const size=Math.min(canvas.width,canvas.height);sprite(c,index,(canvas.width-size)/2,(canvas.height-size)/2,size,size);}
 export class Renderer{
- constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.drag=null;this.hover=-1;this.scene=buildScene();}
+ constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.drag=null;this.hover=-1;this.scenes=[1,2,3].map(stage=>buildScene(stage));}
  draw(game){
   const c=this.ctx;c.clearRect(0,0,720,720);c.imageSmoothingEnabled=false;
-  c.drawImage(this.scene,0,0,720,720);drawSceneLights(c,game.time);
+  c.drawImage(this.scenes[game.stage-1],0,0,720,720);drawSceneLights(c,game.time,game.stage);
   c.fillStyle='#d4bf8a88';c.font='16px monospace';c.textAlign='center';
   c.fillText('› ›',360,72);c.fillText('⌄',654,365);c.fillText('‹ ‹',360,661);c.fillText('⌃',66,365);
   for(let i=0;i<16;i++){
@@ -44,7 +46,10 @@ export class Renderer{
    }
   }
   for(const f of game.effects){const a=f.life/f.maxLife;c.save();c.globalAlpha=a;c.strokeStyle=f.color;c.fillStyle=f.color;
-   if(f.type==='stun-wave'){
+   if(f.type==='gem'){c.font='bold 17px monospace';c.textAlign='center';c.fillText('◆ +1',f.x,f.y-(1-a)*36);}
+   else if(f.type==='bounty'){
+    c.font='bold 17px monospace';c.textAlign='center';c.fillText(`+${f.amount}`,f.x,f.y-(1-a)*32);
+   }else if(f.type==='stun-wave'){
     c.globalAlpha=a*.16;c.beginPath();c.arc(f.x,f.y,f.radius,0,Math.PI*2);c.fill();
     c.globalAlpha=a;c.lineWidth=4;c.beginPath();c.arc(f.x,f.y,f.radius*(1-a*.7),0,Math.PI*2);c.stroke();
     c.font='bold 14px monospace';c.textAlign='center';c.fillText('STOP',f.x,f.y-12);

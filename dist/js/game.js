@@ -1,25 +1,53 @@
 import {CONFIG,positionAt,cellCenter} from './data/config.js';
 import {GUARDS} from './data/guards.js';
 import {ENEMIES,HP_GROWTH,HP_MULTIPLIER} from './data/enemies.js';
-import {WAVES} from './data/waves.js';
+import {WAVES,createWaves} from './data/waves.js';
+import {STAGES} from './data/stages.js';
 import {LUCK_EFFECTS} from './data/luck.js';
 
 export class Game {
  constructor(random=Math.random){this.random=random;this.reset();}
  reset(){
-  this.mode='ready';this.gold=CONFIG.startGold;this.cells=Array(16).fill(null);this.pending=null;
+  this.stage=1;this.completedStages=0;this.waves=WAVES;this.stageResults=[];this.stageStartTime=0;this.stageStartKills=0;this.mode='ready';this.gold=CONFIG.startGold;this.cells=Array(16).fill(null);this.pending=null;
   this.selected=-1;this.enemies=[];this.effects=[];this.bursts=[];this.wave=0;this.waveTimer=30;
   this.bossId=null;this.bossTimer=0;this.spawnQueue=[];this.waveElapsed=0;this.time=0;
-  this.summonCount=0;this.luckCount=0;this.activeLuck={};this.lastLuck=null;this.extraQueue=[];
+  this.gems=0;this.combatLevel=1;this.speedUnlocked=false;this.speedMultiplier=1;this.lastSummon=null;
+  this.bountyGold=0;this.summonCount=0;this.luckCount=0;this.activeLuck={};this.lastLuck=null;this.extraQueue=[];
   this.kills=0;this.merges=0;this.reason='';this.serial=0;this.notice='準備好了嗎？開始守衛你的程式世界。';
  }
- start(){if(this.mode==='ready'){this.mode='running';this.beginWave(1);this.notice='點擊召喚，再點格子放置小兵。';}}
+ start(){if(this.mode==='ready'){this.mode='running';this.beginWave(1);this.notice='點擊召喚，守衛會自動加入戰場，可連續召喚。';}}
  togglePause(){if(this.mode==='running')this.mode='paused';else if(this.mode==='paused')this.mode='running';}
+ get stageSettings(){return STAGES[this.stage-1];}
+ continueStage(){
+  if(this.mode!=='stage-clear'||this.stage>=STAGES.length)return false;
+  this.stage++;this.waves=createWaves(this.stage);this.stageStartTime=this.time;this.stageStartKills=this.kills;
+  this.mode='running';this.effects=[];this.bursts=[];this.bossId=null;this.bossTimer=0;this.beginWave(1);return true;
+ }
+ finishChallenge(){if(this.mode!=='stage-clear')return false;this.mode='ended';this.reason=`完成 ${this.completedStages} 關，挑戰結束。`;return true;}
+ clearStage(){
+  this.completedStages=this.stage;
+  this.stageResults.push({stage:this.stage,time:Math.round(this.time-this.stageStartTime),kills:this.kills-this.stageStartKills});
+  this.mode=this.stage===STAGES.length?'won':'stage-clear';
+  this.reason=this.stage===STAGES.length?'全部三關、60波已完成！':`第 ${this.stage} 關已完成，可保留全隊繼續下一關。`;
+  this.notice=this.reason;
+ }
  get guardCount(){return this.cells.reduce((n,c)=>n+(c?.units.length||0),0)+(this.pending?1:0);}
  get summonCost(){return CONFIG.summonCost+this.summonCount*CONFIG.summonIncrease;}
  get luckCost(){return CONFIG.luckCost+this.luckCount*CONFIG.luckIncrease;}
  hasLuck(id){return (this.activeLuck[id]||0)>this.time;}
- get damageFactor(){return (this.hasLuck('power')?1.25:1)*(this.hasLuck('weak')?.8:1);}
+ get combatMultiplier(){return 1+(this.combatLevel-1)*CONFIG.combatLevelDamage;}
+ get upgradeCost(){return this.combatLevel>=CONFIG.maxCombatLevel?null:2**(this.combatLevel-1);}
+ upgradeCombat(){
+  if(this.mode!=='running'||this.upgradeCost===null||this.gems<this.upgradeCost)return false;
+  this.gems-=this.upgradeCost;this.combatLevel++;this.notice=`戰力提升到 Lv.${this.combatLevel}，全隊傷害 +${Math.round((this.combatMultiplier-1)*100)}%。`;return true;
+ }
+ changeSpeed(){
+  if(this.mode!=='running')return false;
+  if(!this.speedUnlocked){if(this.gold<CONFIG.speedUnlockCost)return false;this.gold-=CONFIG.speedUnlockCost;this.speedUnlocked=true;this.speedMultiplier=2;}
+  else this.speedMultiplier=this.speedMultiplier===1?2:1;
+  this.notice=`戰鬥速度 ${this.speedMultiplier}×，本局可免費切換。`;return true;
+ }
+ get damageFactor(){return this.combatMultiplier*(this.hasLuck('power')?1.25:1)*(this.hasLuck('weak')?.8:1);}
  get intervalFactor(){return (this.hasLuck('lag')?1.25:1)/(this.hasLuck('overclock')?1.25:1);}
  enemySpeedFactor(e){return (this.hasLuck('slow')?(e.boss?.875:.75):1)*(this.hasLuck('haste')&&!e.boss?1.25:1);}
  canReinforce(){return !this.pending&&this.guardCount<CONFIG.maxGuards&&CONFIG.tiers[2].every(id=>this.hasPlace(id));}
@@ -41,13 +69,20 @@ export class Game {
    for(const e of this.enemies)if(!e.boss&&e.hp>0)e.hp*=.8;
    this.effects.push({type:'blast',x:360,y:360,radius:340,color:'#8bebd5',life:.8,maxLife:.8});
   }else if(chosen.id==='reinforce'){
-   this.pending=this.randomPick(CONFIG.tiers[2]);this.selected=-1;
+   this.deploy(this.randomPick(CONFIG.tiers[2]));
   }else if(chosen.id==='invasion'){
-   const ids=Object.values(ENEMIES).filter(e=>e.kind!=='頭目'&&e.firstWave<=this.wave).map(e=>e.id);
+   const ids=Object.values(ENEMIES).filter(e=>e.kind!=='頭目'&&e.stage<=this.stage&&(e.stage<this.stage||e.firstWave<=this.wave)).map(e=>e.id);
    for(let i=0;i<5;i++)this.extraQueue.push({at:this.time+(i+1)*.6,id:this.randomPick(ids)});
    this.extraQueue.sort((a,b)=>a.at-b.at);
   }
   this.notice=`${chosen.positive?'增益':'負面'}：${chosen.name}！${chosen.description}`;return true;
+ }
+ summonPool(){return Object.values(GUARDS).map(d=>({id:d.id,weight:CONFIG.summonTierWeights[d.tier]/CONFIG.tiers[d.tier].length}));}
+ pickSummon(){
+  const pool=this.summonPool(),total=pool.reduce((n,d)=>n+d.weight,0);
+  let point=Math.min(.999999999999,Math.max(0,this.random()))*total;
+  for(const d of pool){point-=d.weight;if(point<0)return d.id;}
+  return pool[pool.length-1].id;
  }
  randomPick(ids){return ids[Math.min(ids.length-1,Math.floor(this.random()*ids.length))];}
  hasPlace(id){return this.cells.some(c=>!c||(c.id===id&&c.units.length<CONFIG.maxStack));}
@@ -57,14 +92,21 @@ export class Game {
   if(this.hasLuck('jam'))return `召喚干擾中，${Math.ceil(this.activeLuck.jam-this.time)} 秒後恢復。`;
   if(this.guardCount>=CONFIG.maxGuards)return '角色已達 30 隻，合成後可再召喚。';
   if(this.gold<this.summonCost)return '金幣不足，擊敗怪物可獲得金幣。';
-  if(!CONFIG.tiers[1].every(id=>this.hasPlace(id)))return '請先合成或整理格子，保留召喚空間。';
+  if(!this.summonPool().every(d=>this.hasPlace(d.id)))return '請先合成或整理格子，保留召喚空間。';
   return '';
  }
  summon(){const problem=this.summonProblem();if(problem){this.notice=problem;return false;}
-  this.pending=this.randomPick(CONFIG.tiers[1]);this.gold-=this.summonCost;this.summonCount++;this.selected=-1;
-  this.notice=`召喚到 ${GUARDS[this.pending].name}！點擊亮起的格子放置。`;return true;
+  const id=this.pickSummon();this.deploy(id);this.gold-=this.summonCost;this.summonCount++;
+  this.notice=`召喚到 ${GUARDS[id].name}！已自動上場，可繼續召喚或拖曳調整位置。`;return true;
  }
- unit(){return {cooldown:0,special:0};}
+ deploy(id){
+  let i=this.cells.findIndex(c=>c?.id===id&&c.units.length<CONFIG.maxStack);
+  if(i<0)i=this.cells.findIndex(c=>!c);
+  if(i<0)return false;
+  if(!this.cells[i])this.cells[i]={id,units:[]};
+  this.cells[i].units.push(this.unit());this.lastSummon=id;this.selected=i;return true;
+ }
+ unit(){return {cooldown:0,special:0,attacks:0,cacheTarget:null,cacheHits:0};}
  place(i){
   if(this.mode!=='running'||!this.pending||i<0||i>15)return false;
   let c=this.cells[i];
@@ -91,7 +133,7 @@ export class Game {
  }
  beginWave(number){
   this.wave=number;this.waveElapsed=0;this.waveTimer=CONFIG.waveDuration;this.spawnQueue=[];
-  const w=WAVES[number-1];
+  const w=this.waves[number-1];
   if(w.bossId){const e=this.spawn(w.bossId,true);this.bossId=e.uid;this.bossTimer=w.bossTimeLimit;this.notice=`頭目 ${e.name} 登場！60 秒內擊敗它。`;return;}
   // Interleave groups, so mixed waves do not arrive as isolated blocks.
   const left=w.spawnGroups.map(g=>({...g}));let t=0;
@@ -99,24 +141,36 @@ export class Game {
   this.notice=`第 ${number} 波開始，準備迎接 Bug！`;
  }
  spawn(id,boss=false){
-  const d=ENEMIES[id],hp=boss?d.hp:Math.round(d.hp*HP_MULTIPLIER*Math.pow(HP_GROWTH,this.wave-1));
+  const d=ENEMIES[id],settings=this.stageSettings,bi=settings.bosses.indexOf(id);
+  const hp=boss?(bi>=0?settings.bossHp[bi]:d.hp):Math.round(d.hp*HP_MULTIPLIER*settings.hpStart*Math.pow(settings.hpGrowth,this.wave-1));
   const e={...d,uid:++this.serial,maxHp:hp,hp,p:0,stun:0,stunLock:0,boss};this.enemies.push(e);
   if(this.enemies.length>=CONFIG.maxEnemies)this.lose('場上怪物達到 80 隻，系統被 Bug 淹沒了。');return e;
  }
  lose(reason){this.mode='lost';this.reason=reason;this.notice=reason;}
  targets(cell,def){const p=cellCenter(cell);return this.enemies.filter(e=>e.hp>0&&Math.hypot(positionAt(e.p).x-p.x,positionAt(e.p).y-p.y)<=def.range).sort((a,b)=>def.attackType==='execute'?a.hp/a.maxHp-b.hp/b.maxHp:b.p-a.p);}
- hit(e,damage,from,color){if(!e||e.hp<=0)return;const p=positionAt(e.p);e.hp-=damage*this.damageFactor;this.effects.push({type:'shot',x:from.x,y:from.y,tx:p.x,ty:p.y,color,life:.16,maxLife:.16});}
+ damage(e,amount,sourceId=null){
+  if(!e||e.hp<=0)return;
+  e.hp-=amount*this.damageFactor;
+  if(e.hp<=0)e.killedBy=sourceId;
+ }
+ hit(e,damage,from,color,sourceId=null){if(!e||e.hp<=0)return;const p=positionAt(e.p);this.damage(e,damage,sourceId);this.effects.push({type:'shot',x:from.x,y:from.y,tx:p.x,ty:p.y,color,life:.16,maxLife:.16});}
  fire(i,def,u){
   const ts=this.targets(i,def);if(!ts.length)return;const p=cellCenter(i),e=ts[0];
-  const damage=def.damage*(def.attackType==='execute'&&e.hp/e.maxHp<def.effect.threshold?def.effect.multiplier:1);
-  if(def.attackType==='multi')ts.slice(0,def.effect.targets).forEach(t=>this.hit(t,damage,p,def.color));
-  else {this.hit(e,damage,p,def.color);if(def.attackType==='burst'){for(let k=1;k<3;k++)this.bursts.push({due:this.time+k*.11,cell:i,guardId:def.id,target:e.uid,damage:def.damage});}}
-  u.cooldown=def.attackInterval*this.intervalFactor;
-  if(def.tier===3&&u.special<=0){
+  u.attacks=(u.attacks||0)+1;
+  let skillMultiplier=1;
+  if(def.attackType==='charge'&&u.attacks%(def.effect.after+1)===0)skillMultiplier=def.effect.multiplier;
+  if(def.attackType==='boolean')skillMultiplier=u.attacks%2?1.6:.4;
+  if(def.attackType==='cache'){if(u.cacheTarget!==e.uid){u.cacheTarget=e.uid;u.cacheHits=0;}else u.cacheHits=Math.min((u.cacheHits||0)+1,Math.round(def.effect.max/def.effect.step));}
+  const damage=def.damage*skillMultiplier*(def.attackType==='execute'&&e.hp/e.maxHp<def.effect.threshold?def.effect.multiplier:1);
+  if(def.attackType==='multi')ts.slice(0,def.effect.targets).forEach(t=>this.hit(t,damage,p,def.color,def.id));
+  else {this.hit(e,damage,p,def.color,def.id);if(def.attackType==='burst'){for(let k=1;k<3;k++)this.bursts.push({due:this.time+k*.11,cell:i,guardId:def.id,target:e.uid,damage:def.damage});}}
+  u.cooldown=def.attackInterval*this.intervalFactor/(def.attackType==='cache'?1+(u.cacheHits||0)*def.effect.step:1);
+  if(def.attackType==='compile'&&u.attacks%(def.effect.after+1)===0){const pos=positionAt(e.p);this.effects.push({type:'blast',x:pos.x,y:pos.y,radius:def.effect.radius,color:def.color,life:.5,maxLife:.5});for(const target of this.enemies){const tp=positionAt(target.p);if(target.hp>0&&Math.hypot(tp.x-pos.x,tp.y-pos.y)<=def.effect.radius)this.damage(target,def.effect.damage,def.id);}}
+  if(def.tier===3&&def.effect?.type&&u.special<=0){
    const f=def.effect,pos=positionAt(e.p),factor=e.boss?CONFIG.bossControlFactor:1;
    if(f.type==='blast'){
     this.effects.push({type:'blast',x:pos.x,y:pos.y,radius:f.radius,color:def.color,life:.5,maxLife:.5});
-    for(const t of this.enemies){const tp=positionAt(t.p);if(t.hp>0&&Math.hypot(tp.x-pos.x,tp.y-pos.y)<=f.radius)t.hp-=f.damage*this.damageFactor;}
+    for(const t of this.enemies){const tp=positionAt(t.p);if(t.hp>0&&Math.hypot(tp.x-pos.x,tp.y-pos.y)<=f.radius)this.damage(t,f.damage,def.id);}
    } else if(f.type==='push'){e.p=Math.max(0,e.p-f.distance*factor);this.effects.push({type:'ring',x:pos.x,y:pos.y,color:def.color,life:.4,maxLife:.4});}
    else if(f.type==='stun'){
     let affected=0;
@@ -144,14 +198,27 @@ export class Game {
   if(this.mode!=='running')return;
   for(const e of this.enemies){const frozen=Math.min(dt,e.stun);e.stun=Math.max(0,e.stun-dt);e.stunLock=Math.max(0,e.stunLock-dt);e.p+=e.speed*this.enemySpeedFactor(e)*(dt-frozen);}
   const due=this.bursts.filter(b=>b.due<=this.time);this.bursts=this.bursts.filter(b=>b.due>this.time);
-  for(const b of due){const d=GUARDS[b.guardId];if(this.cells[b.cell]?.id!==b.guardId)continue;const t=this.enemies.find(e=>e.uid===b.target&&e.hp>0)||this.targets(b.cell,d)[0];if(t)this.hit(t,b.damage,cellCenter(b.cell),d.color);}
+  for(const b of due){const d=GUARDS[b.guardId];if(this.cells[b.cell]?.id!==b.guardId)continue;const t=this.enemies.find(e=>e.uid===b.target&&e.hp>0)||this.targets(b.cell,d)[0];if(t)this.hit(t,b.damage,cellCenter(b.cell),d.color,b.guardId);}
   for(let i=0;i<16;i++){const c=this.cells[i];if(!c)continue;const d=GUARDS[c.id];for(const u of c.units){u.cooldown-=dt;u.special-=dt;if(u.cooldown<=0)this.fire(i,d,u);}}
   // Resolve kills before deadline checks on the same simulation tick.
   let bossKilled=false;
-  this.enemies=this.enemies.filter(e=>{if(e.hp>0)return true;this.gold+=e.reward;this.kills++;if(e.uid===this.bossId)bossKilled=true;return false;});
-  if(bossKilled){this.bossId=null;this.bossTimer=0;this.waveTimer=CONFIG.waveDuration;this.notice='頭目已擊敗！獲得 100 金幣。';}
+  this.enemies=this.enemies.filter(e=>{
+   if(e.hp>0)return true;
+   this.gold+=e.reward;this.kills++;
+   const bounty=GUARDS[e.killedBy]?.bounty;
+   if(!e.boss&&bounty&&this.random()<bounty.chance){
+    this.gold+=bounty.bonus;this.bountyGold+=bounty.bonus;
+    const p=positionAt(e.p);this.effects.push({type:'bounty',x:p.x,y:p.y-24,amount:bounty.bonus,color:'#ffe08a',life:1,maxLife:1});
+   }
+   if(!e.boss&&this.random()<CONFIG.gemDropChance){
+    this.gems++;const p=positionAt(e.p);this.effects.push({type:'gem',x:p.x,y:p.y-42,color:'#a5abff',life:1.2,maxLife:1.2});
+   }
+   if(e.uid===this.bossId)bossKilled=true;return false;
+  });
+  if(bossKilled){this.bossId=null;this.bossTimer=0;this.waveTimer=CONFIG.waveDuration;this.notice='頭目已擊敗！獎勵已入帳。';}
   if(this.bossId){this.bossTimer-=dt;if(this.bossTimer<=0)this.lose('頭目倒數結束，這次守衛失敗了。');}
-  else if(this.wave===WAVES.length){if(!this.enemies.length&&!this.spawnQueue.length&&!this.extraQueue.length){this.mode='won';this.reason='全部 20 波已完成，Bug 已清空。';}}
+  else if(this.wave===WAVES.length){if(!this.enemies.length&&!this.spawnQueue.length&&!this.extraQueue.length){this.clearStage();}}
+  else if(!this.enemies.length&&!this.spawnQueue.length&&!this.extraQueue.length)this.beginWave(this.wave+1);
   else if(!bossKilled){this.waveTimer-=dt;if(this.waveTimer<=0)this.beginWave(this.wave+1);}
  }
 }

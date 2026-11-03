@@ -1,6 +1,10 @@
 const specs=[
+ ['byte','BYTE 位元組兵',1,19,'#c6b8ff',5,245,.9,'charge',{after:8,multiplier:3},'八次普通攻擊後，下一發造成三倍傷害。','一個位元組（Byte）由八個位元（bit）組成；蓄能是遊戲化比喻。'],
+ ['bool','BOOL 布林兵',1,20,'#52d68c',7,230,1.1,'boolean',null,'True／False 交替攻擊：傷害1.6倍／0.4倍。','布林值有 True 與 False 兩種狀態；強弱攻擊是遊戲化比喻。'],
+ ['cache','CACHE 快取兵',2,21,'#9cecff',28,280,.9,'cache',{step:.1,max:.5},'持續命中同一目標逐漸加快攻速，最多50%；換目標重設。','快取保存資料以加速後續存取；連續鎖定加速是遊戲化比喻。'],
+ ['compile','COMPILE 編譯官',3,22,'#eaa495',85,300,.9,'compile',{after:6,damage:240,radius:120},'六次普通攻擊後，下一發追加編譯範圍彈。','編譯將原始程式轉換成目標程式；累積符號發射是遊戲化比喻。'],
  ['bit','Bit 位元兵',1,0,'#61e2ee',6,230,1,'single',null,'穩定單發，可靠的第一道防線。','位元以 0 或 1 表示二進位資料。'],
- ['symbol','符號兵',1,1,'#ffc36c',2.5,220,.4,'single',null,'快速射擊，每發傷害較低。','分號在部分程式語言中用來結束敘述。'],
+ ['symbol','符號兵',1,1,'#ffc36c',2.5,220,.4,'single',null,'快速射擊；親自擊殺小怪時，有 30% 機率額外獲得 10 金幣。','分號在部分程式語言中用來結束敘述。'],
  ['bracket','括號兵',1,2,'#8da8ff',12,245,1.8,'single',null,'慢速重擊，單發傷害較高。','大括號可用來界定程式區塊。'],
  ['print','輸出手',2,3,'#58e9ec',38,260,.9,'single',null,'穩定輸出，處理單一目標。','print 是 Python 常用的輸出函式。'],
  ['for','迴圈射手',2,4,'#ffb759',15,250,1,'burst',null,'每次連射三發。','for 迴圈用來重複執行操作。'],
@@ -11,5 +15,5 @@ const specs=[
  ['break','STOP 中斷者',3,9,'#ffe075',85,280,.9,'single',{type:'stun',interval:3.5,duration:1.4,radius:115},'定期釋放 STOP 控制波，暈眩目標周圍 115 範圍內敵人 1.4 秒；頭目 0.35 秒。','break 可中止所在的迴圈；部分語言也用於 switch。'],
  ['debug','除錯專家',3,10,'#ffac9c',45,310,.35,'single',{type:'blast',interval:3,damage:85,radius:135},'持續射擊，每三秒釋放範圍除錯波。','除錯是找出、分析並修正程式問題的過程。'],
 ];
-export const GUARDS=Object.fromEntries(specs.map(([id,name,tier,sprite,color,damage,range,attackInterval,attackType,effect,description,conceptMeaning])=>[id,{id,name,tier,sprite,color,damage,range,attackInterval,attackType,effect,description,conceptMeaning}]));
+export const GUARDS=Object.fromEntries(specs.sort((a,b)=>['bit','symbol','bracket','byte','bool','print','for','if','array','cache','function','return','break','debug','compile'].indexOf(a[0])-['bit','symbol','bracket','byte','bool','print','for','if','array','cache','function','return','break','debug','compile'].indexOf(b[0])).map(([id,name,tier,sprite,color,damage,range,attackInterval,attackType,effect,description,conceptMeaning])=>[id,{id,name,tier,sprite,color,damage,range,attackInterval,attackType,effect,description,conceptMeaning,bounty:id==='symbol'?{chance:.30,bonus:10}:null}]));
 export const TIER_NAMES={1:'基礎小兵',2:'流程守衛',3:'系統守護者'};

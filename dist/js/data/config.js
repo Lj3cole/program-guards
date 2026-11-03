@@ -1,9 +1,11 @@
 export const CONFIG = Object.freeze({
   width:720, height:720, gridSize:4, gridX:144, gridY:144, cellSize:108,
   maxGuards:30, maxStack:3, startGold:200, summonCost:20, summonIncrease:2, luckCost:100, luckIncrease:50,
+  speedUnlockCost:500, gemDropChance:.08, combatLevelDamage:.15, maxCombatLevel:10,
   maxEnemies:80, waveDuration:30, bossTimeLimit:60,
   bossControlFactor:0.25, stunRecovery:0.6, bossStunRecovery:1.2, step:1/60,
-  tiers:{1:['bit','symbol','bracket'],2:['print','for','if','array'],3:['function','return','break','debug']},
+  summonTierWeights:{1:75,2:20,3:5},
+  tiers:{1:['bit','symbol','bracket','byte','bool'],2:['print','for','if','array','cache'],3:['function','return','break','debug','compile']},
   path:[{x:66,y:66},{x:654,y:66},{x:654,y:654},{x:66,y:654}],
 });
 export const PATH_LENGTH=2352;

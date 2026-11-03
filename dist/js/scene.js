@@ -1,6 +1,6 @@
 // Original scene drawn on a 360px canvas and enlarged without smoothing.
 // Decoration is deterministic and never consumes gameplay randomness.
-export function buildScene(){
+export function buildScene(stage=1){
  const layer=document.createElement('canvas');layer.width=layer.height=360;
  const c=layer.getContext('2d');
  const rect=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -57,12 +57,22 @@ export function buildScene(){
  for(let j=0;j<48;j++){
   const x=20+(j*83)%322,y=j%2?12:346;rect(x,y,3+j%3,2,'#506352');rect(y,x,2,3,'#3c5148');
  }
+
+ if(stage===2){
+  c.globalCompositeOperation='source-atop';rect(0,0,360,360,'#064a6028');c.globalCompositeOperation='source-over';
+  for(let i=0;i<12;i++){rect(8+i*28,5,20,5,'#286779');rect(9+i*28,6,16,1,'#66d9df');rect(5,10+i*28,5,18,'#154c60');}
+  for(const [x,y] of [[57,57],[286,57],[57,286],[286,286]]){rect(x,y,16,14,'#102f42');rect(x+2,y+2,12,8,'#26a7ae');rect(x+4,y+4,7,2,'#a0ffe5');}
+ }else if(stage===3){
+  c.globalCompositeOperation='source-atop';rect(0,0,360,360,'#4d123e28');c.globalCompositeOperation='source-over';
+  for(let i=0;i<20;i++){const x=16+i*17;rect(x,5,9,3,'#a53c38');rect(x+2,6,4,1,'#ffc561');rect(5,x,3,8,'#bf473a');rect(x,351,9,3,'#d7573e');rect(351,x,3,8,'#d7573e');}
+  for(const [x,y] of [[59,59],[288,59],[59,288],[288,288]]){rect(x,y,12,12,'#601c53');rect(x+3,y+2,6,8,'#f569a5');rect(x+5,y+4,2,4,'#ffc1b8');}
+ }
  return layer;
 }
-export function drawSceneLights(c,time){
+export function drawSceneLights(c,time,stage=1){
  // Four tiny wall sconces with stepped, pixel flames and no blur.
  for(const [x,y] of [[24,210],[682,210],[24,484],[682,484]]){
   c.fillStyle='#0d111b';c.fillRect(x-2,y+10,16,16);c.fillStyle='#6f604d';c.fillRect(x,y+6,12,14);
-  c.fillStyle='#d86b3c';c.fillRect(x,y-8,12,14);c.fillStyle='#ffb457';c.fillRect(x+2,y-12-(Math.floor(time*5)%2)*2,8,16);c.fillStyle='#ffe4a1';c.fillRect(x+4,y-6,4,10);
+  c.fillStyle=stage===2?'#247b9b':stage===3?'#ad2b83':'#d86b3c';c.fillRect(x,y-8,12,14);c.fillStyle=stage===2?'#63d5ed':stage===3?'#f767ac':'#ffb457';c.fillRect(x+2,y-12-(Math.floor(time*5)%2)*2,8,16);c.fillStyle='#ffe4a1';c.fillRect(x+4,y-6,4,10);
  }
 }
